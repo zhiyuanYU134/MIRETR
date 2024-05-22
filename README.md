@@ -69,6 +69,7 @@ The code for robi is in `release/robi`. Use the following command for testing.
 ```bash
 CUDA_VISIBLE_DEVICES=0 python test.py
 ```
+We provide pretrained weights in https://drive.google.com/drive/folders/14dFeMda_zt0r2pC-NjnpLsZGeJ9fpD3o?usp=drive_link.
 ## Acknowledgements
 
 - [RPMNet](https://github.com/yewzijian/RPMNet)
