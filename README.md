@@ -5,7 +5,7 @@ PyTorch implementation of the paper:
 [Learning Instance-Aware Correspondences for Robust Multi-Instance Point Cloud Registration in Cluttered Scenes](https://arxiv.org/abs/2404.04557).
 
 Zhiyuan Yu, Zheng Qin, Lintao Zheng, and Kai Xu.
-
+Email:yuzhiyuan317@gmail.com
 ## Introduction
 
 Multi-instance point cloud registration estimates the poses of multiple instances of a model point cloud in a scene point cloud. Extracting accurate point correspondences is to the center of the problem. Existing approaches
