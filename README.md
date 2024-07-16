@@ -5,6 +5,7 @@ PyTorch implementation of the paper:
 [Learning Instance-Aware Correspondences for Robust Multi-Instance Point Cloud Registration in Cluttered Scenes](https://arxiv.org/abs/2404.04557).
 
 Zhiyuan Yu, Zheng Qin, Lintao Zheng, and Kai Xu.
+
 Email:yuzhiyuan317@gmail.com
 ## Introduction
 
