@@ -399,6 +399,7 @@ class Node2Point(nn.Module):
         output_dict['ref_node_corr_knn_points']=ref_neighbor_corr_knn_points
         output_dict['src_node_corr_knn_points']=src_neighbor_corr_knn_points
         output_dict['ref_node_corr_knn_masks']=ref_neighbor_knn_masks
+        output_dict['src_node_corr_knn_masks']=src_neighbor_knn_masks
 
         # Generate Instance-aware correspondences 
         if not self.training:
