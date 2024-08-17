@@ -60,7 +60,8 @@ You need to pre-download dataset [ROBI](https://www.trailab.utias.utoronto.ca/ro
 The code for robi is in `release/robi`. Use the following command for training.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python trainval.py
+cd MIRETR
+CUDA_VISIBLE_DEVICES=0 python release/robi/trainval.py
 ```
 
 ### Testing
@@ -68,7 +69,8 @@ CUDA_VISIBLE_DEVICES=0 python trainval.py
 The code for robi is in `release/robi`. Use the following command for testing.
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python test.py
+cd MIRETR
+CUDA_VISIBLE_DEVICES=0 python release/robi/test.py
 ```
 We provide pretrained weights in https://drive.google.com/drive/folders/14dFeMda_zt0r2pC-NjnpLsZGeJ9fpD3o?usp=drive_link.
 ## Acknowledgements
