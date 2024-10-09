@@ -14,7 +14,7 @@ import os
 from ROBI import inout
 
 from ...utils.point_cloud_utils import (
-    random_sample_rotation
+    random_sample_rotation, apply_transform
 )
 from ...utils.registration_utils import get_corr_indices
 from ...modules.kpconv.helpers import generate_input_data, calibrate_neighbors
@@ -809,6 +809,172 @@ class Process_Scan2cadKPConvDataset(torch.utils.data.Dataset):
     
         return points0,points1,feats0,feats1,Rts,correspondences, sym,sym,sym, points0,points1
 
+class SyntheticShapeNet(torch.utils.data.Dataset):
+    def __init__(self,
+                vox_size,
+                 shapenet_root,
+                 split,
+                 matching_radius,
+                 max_point=30000,
+                 use_augmentation=True,
+                 augmentation_noise=0.005,
+                 rotation_factor=1,
+                 overlap_thresh=None,
+                 return_correspondences=True,
+                 suffix=None,
+                 aligned=False,
+                 rotated=False):
+        super(SyntheticShapeNet, self).__init__()
+
+        self.shapenet_root = shapenet_root
+        self.partition = split
+        self.matching_radius = matching_radius
+        
+        self.max_point = max_point
+        self.return_correspondences = return_correspondences
+        self.suffix = suffix
+        self.aligned = aligned
+        self.rotated = rotated
+
+        self.vox_size=vox_size
+        self.index=[]
+        self.max_object=500
+        self.num_instance = 16
+        self.max_instance_drop=12
+        self.augment_axis = 3
+        self.augment_rotation = 1
+        self.augment_translation = 5
+
+        aug_T=torch.zeros((3,9,3))
+        aug_T[0,:,2]=-1
+        aug_T[1,:,2]=0
+        aug_T[2,:,2]=1
+        x=torch.linspace(-1,1,3)
+        x=x.reshape(-1,1)
+        x=x.expand(x.shape[0],3).reshape(x.shape[0],3,1)
+        y=torch.linspace(-1,1,3) 
+        y=y.reshape(1,-1)
+        y=y.expand(3,y.shape[1]).reshape(3,y.shape[1],1)
+        xy=torch.cat((x,y),dim=-1)
+        xy=xy.reshape(-1,xy.shape[-1])
+        aug_T[:,:,:2]=xy
+        self.aug_T=aug_T.reshape(-1,3)
+
+        train_index=[1,2,3,4,6,8,9,10,12,14,17,19,22,23,25,28,30,31,32,34,35,39,41,43,45,46,49,50,51,54]
+        test_index=[0,5,7,11,13,15,16,18,20,21,24,26,27,29,33,36,37,38,40,42,44,47,48,52,53]#
+        train_catgory_dataset_paths=[]
+        eval_catgory_dataset_paths=[]
+        test_catgory_dataset_paths=[]
+
+        with open(osp.join(self.shapenet_root, 'shapenet_path.pkl'), 'rb') as f:
+            self.shapenet_path = pickle.load(f)  
+        for i in range(55):
+            paths=self.shapenet_path[i]
+            if len(paths)>self.max_object:
+                paths=paths[:self.max_object]
+                eval_paths=paths[self.max_object:]
+            if i in train_index:
+                train_catgory_dataset_paths+=paths
+                if len(paths)>self.max_object:
+                    eval_catgory_dataset_paths+=eval_paths
+            else:
+                test_catgory_dataset_paths+=paths
+        eval_catgory_dataset_paths=random.shuffle(eval_catgory_dataset_paths)[:900]
+        if self.partition == 'train':
+            self.index=train_catgory_dataset_paths
+            self.num = len(self.index)
+            self.use_augmentation = True
+   
+        elif self.partition == 'val':
+
+            self.index=eval_catgory_dataset_paths
+            self.num = len(self.index)
+            self.use_augmentation = True
+
+        elif self.partition == 'test':
+            self.index=test_catgory_dataset_paths
+            self.num = len(self.index)
+            self.use_augmentation = True
+        else:
+            print('gg')
+
+    def __len__(self):
+        return self.num
+    def produce_augment(self):
+        aug_R = []
+        for i in range(self.num_instance):
+            aug_R.append(rotation_matrix(self.augment_axis, self.augment_rotation))
+        return aug_R
+    def integrate_trans(self, R, t):
+        """
+        Integrate SE3 transformations from R and t, support torch.Tensor and np.ndarry.
+        Input
+            - R: [3, 3] or [bs, 3, 3], rotation matrix
+            - t: [3, 1] or [bs, 3, 1], translation matrix
+        Output
+            - trans: [4, 4] or [bs, 4, 4], SE3 transformation matrix
+        """
+        trans = np.eye(4).reshape(-1,4,4).repeat(self.num_instance,0)
+        trans[:, :3, :3] = R
+        trans[:, :3, 3:4] = t
+        return trans
+
+    def transform(self, pts, trans):
+        """
+        Applies the SE3 transformations, support torch.Tensor and np.ndarry.  Equation: trans_pts = R @ pts + t
+        Input
+            - pts: [num_pts, 3] or [bs, num_pts, 3], pts to be transformed
+            - trans: [4, 4] or [bs, 4, 4], SE3 transformation matrix
+        Output
+            - pts: [num_pts, 3] or [bs, num_pts, 3] transformed pts
+        """
+        trans_pts = trans[:, :3, :3] @ pts.transpose(0, 2, 1) + trans[:, :3, 3:4]
+        return trans_pts.transpose(0, 2, 1)
+
+    def __getitem__(self, id):
+        # metadata
+        
+        cad_path=os.path.join(self.shapenet_root,self.index[id].split('ShapeNetCore')[-1])
+
+        cad = o3d.io.read_triangle_mesh(cad_path)
+        cad = cad.sample_points_uniformly(10000)
+        
+        cad_points = np.array(cad.points).astype(np.float32)
+        src_R=pairwise_distance(cad_points,cad_points).max()
+        cad_points/= np.sqrt(src_R) 
+        
+        cad=to_o3d_pcd(cad_points)
+        
+        cad=cad.voxel_down_sample(voxel_size=self.vox_size)  
+        cad_points = np.array(cad.points).astype(np.float32)
+        
+        rand_r=torch.from_numpy(rotation_matrix(self.augment_axis, self.augment_rotation))
+        trans = torch.eye(4)
+        trans[:3, :3] = rand_r
+        aug_T = apply_transform(self.aug_T, trans).unsqueeze(-1).numpy()
+        inds = np.random.choice(range(27), self.num_instance, replace=False) 
+        aug_T=aug_T[inds]
+
+        src_keypts = cad_points.reshape(1,cad_points.shape[0],3).repeat(self.num_instance,0)
+        tgt_keypts = src_keypts + np.clip(0.01 * np.random.randn(self.num_instance,cad_points.shape[0],3), -1 * 0.05, 0.05)
+        
+        aug_R = self.produce_augment()
+        aug_trans = self.integrate_trans(aug_R, aug_T)
+
+        tgt_keypts = self.transform(tgt_keypts, aug_trans)
+        num_instance_drop = int(self.max_instance_drop * np.random.rand() // 1)
+        num_instance_input = int(self.num_instance - num_instance_drop)
+        inds = np.random.choice(range(self.num_instance), num_instance_input, replace=False) 
+        tgt_keypts=tgt_keypts[inds].reshape(-1,3)
+        np.random.shuffle(tgt_keypts)
+        np.random.shuffle(cad_points)
+        aug_trans=aug_trans[inds].astype(np.float32)
+              
+        feats0 = np.ones((tgt_keypts.shape[0], 1), dtype=np.float32)
+        feats1 = np.ones((cad_points.shape[0], 1), dtype=np.float32)
+        correspondences=[]
+        
+        return tgt_keypts, cad_points, feats0, feats1, trans, correspondences, correspondences, correspondences, correspondences ,tgt_keypts,cad_points
 
 def threedmatch_kpconv_collate_fn(list_data, config, neighborhood_limits, compute_indices=True):
     data_dicts = []
