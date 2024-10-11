@@ -31,7 +31,7 @@ python setup.py build develop
 ## robi
 
 ### Data preparation
-You need to pre-download dataset [ROBI](https://www.trailab.utias.utoronto.ca/robi), [ScanNet](https://github.com/ScanNet/ScanNet), [ShapeNet](https://www.shapenet.org/) and [Scan2CAD](https://github.com/skanti/Scan2CAD). 
+You need to pre-download dataset [ROBI](https://www.trailab.utias.utoronto.ca/robi), [ScanNet](https://github.com/ScanNet/ScanNet), [ShapeNet](https://www.shapenet.org/) and [Scan2CAD](https://github.com/skanti/Scan2CAD). The object model in ROBI should be the [reconstructed model](https://drive.google.com/file/d/1mdY9qmlWwYYY4rX7YBWaE1X1tBJDBq7o/view?usp=sharing)
 
 ```text
 --data--robi
